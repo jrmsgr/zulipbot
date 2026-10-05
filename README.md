@@ -14,8 +14,10 @@ Those commands do things such as:
 ## Requirements
 
 ### Python Packages
-```python
-pip3 install -r requirements.txt
+Requires Python >= 3.9.
+```shell
+python3 -m venv venv
+./venv/bin/pip install -r requirements.txt
 ```
 ### Progams
   - **cvlc**: audio/video player
@@ -23,20 +25,32 @@ pip3 install -r requirements.txt
 
 ### Setup Files
 Add the following files in this directory:
-  - **zuliprc**, used by Zulip's client. See [Zulip documentation](https://zulip.com/api/running-bots)
-  - **praw.ini**, used by Reddit's client. See [praw documentation](https://praw.readthedocs.io/en/latest/getting_started/configuration/prawini.html)
-  - **msg_filter.json**, used to filter Zulip messages the bot should respond to. See example below
-
-```
-{
-    "type": "stream",
-    "display_recipient": "MyChannel"
-}
-```
+  - **zuliprc**, used by Zulip's client. Create a bot in Zulip
+    (*Personal settings > Bots > Add a new bot*, type "Generic bot"), then download its zuliprc.
+    See [Zulip documentation](https://zulip.com/api/running-bots). It looks like:
+    ```
+    [api]
+    email=mybot-bot@myorg.zulipchat.com
+    key=<BOT_API_KEY>
+    site=https://myorg.zulipchat.com
+    ```
+    The bot must be subscribed to the channels it should listen to.
+  - **msg_filters.json**, a list of filters selecting the Zulip messages the bot responds to.
+    A message is accepted if it matches all the keys of at least one filter.
+    Besides raw Zulip message fields, the keys `channel`, `topic` and `type`
+    (`channel` or `direct`) are supported:
+    ```
+    [
+        {"channel": "MyChannel"},
+        {"type": "direct"}
+    ]
+    ```
+  - **praw.ini** (optional), used by Reddit's client. Without it, reddit commands are disabled.
+    See [praw documentation](https://praw.readthedocs.io/en/latest/getting_started/configuration/prawini.html)
 
 ## Usage
 ```shell
-./main.py
+./venv/bin/python main.py   # or ./run.sh to run it in the background
 ```
 Then, in Zulip, type:
 ```

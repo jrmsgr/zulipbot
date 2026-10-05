@@ -70,7 +70,9 @@ class ZulipBotCmdRedditBase(ZulipBotCmdBase):
     def get_subreddit_from_msg(self, msg: ZulipMsg) -> Union[str, models.Subreddit]:
         subreddit = msg.get_arg(1)
         if not subreddit:
-            subreddit = self.reddit.random_subreddit()
+            # Reddit removed /r/random, so pick one of the popular subreddits instead
+            popular = list(self.reddit.subreddits.popular(limit=50))
+            subreddit = random.choice(popular)
         return subreddit
 
     def get_random_submission(self,
@@ -311,20 +313,18 @@ class ZulipBotCmdGnagnagna(ZulipBotCmdBase):
 
 class ZulipBotCmdWeather(ZulipBotCmdBase):
     def __init__(self):
-        super().__init__("weather", "print current weather")
+        super().__init__("weather", "print current weather", help_args="[CITY]")
 
-    async def print_weather(self, msg: ZulipMsg, city: str = "Rennes, Brittany, France"):
-        client = python_weather.Client()
-        weather = await client.find(city)
-        cw = weather.current
-        msg.reply("{}\n  temp: {}c\n  feels_like: {}c\n  humidity: {}%\n  sky: {}\n  wind: {}".format(
-            cw.observation_point, cw.temperature, cw.feels_like,
-            cw.humidity, cw.sky_text, cw.wind_display))
-        await client.close()
+    async def print_weather(self, msg: ZulipMsg, city: str):
+        async with python_weather.Client(unit=python_weather.METRIC) as client:
+            w = await client.get(city)
+        msg.reply("{}, {}\n  temp: {}c\n  feels_like: {}c\n  humidity: {}%\n  sky: {}\n  wind: {} km/h {}".format(
+            w.location, w.country, w.temperature, w.feels_like,
+            w.humidity, w.description, w.wind_speed, w.wind_direction))
 
     def process(self, msg: ZulipMsg):
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(self.print_weather(msg))
+        city = msg.get_arg(-1) or "Rennes, France"
+        asyncio.run(self.print_weather(msg, city))
 
 
 # --------------------------------------------------------------

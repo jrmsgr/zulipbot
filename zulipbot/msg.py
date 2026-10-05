@@ -52,7 +52,7 @@ class ZulipMsg(object):
         index=n: retuns n-th arg"""
         arg = ""
         msg_list = self.msg['content'].split()
-        is_cmd = msg_list[0][0] == self.cmd_prefix
+        is_cmd = bool(msg_list) and msg_list[0][0] == self.cmd_prefix
         if is_cmd and index < len(msg_list):
             if index == -1:
                 arg = " ".join(msg_list[1:])
@@ -70,17 +70,32 @@ class ZulipMsg(object):
             full_name = m.group(1)
         return full_name
 
+    def is_channel_msg(self) -> bool:
+        # Zulip renamed "streams" to "channels"; accept both spellings
+        return self.msg.get("type") in ("stream", "channel")
+
+    def is_direct_msg(self) -> bool:
+        return self.msg.get("type") in ("private", "direct")
+
+    def filter_matches(self, key: str, value: Any) -> bool:
+        if key == "channel":
+            return self.is_channel_msg() and self.msg.get("display_recipient") == value
+        if key == "topic":
+            return self.is_channel_msg() and self.msg.get("subject") == value
+        if key == "type" and value in ("stream", "channel"):
+            return self.is_channel_msg()
+        if key == "type" and value in ("private", "direct"):
+            return self.is_direct_msg()
+        return key in self.msg and self.msg[key] == value
+
     def is_valid(self) -> bool:
-        not_a_robot = self.msg['content'].split()[0] != self.robot_prefix
+        words = self.msg['content'].split()
+        not_a_robot = bool(words) and words[0] != self.robot_prefix
         valid = False
         for msg_filter in self.msg_filters:
             if not msg_filter:
                 continue
-            valid = True
-            for key in msg_filter.keys():
-                if key not in self.msg.keys() or self.msg[key] != msg_filter[key]:
-                    valid = False
-                    break
+            valid = all(self.filter_matches(k, v) for k, v in msg_filter.items())
             if valid:
                 break
         return not_a_robot and valid
@@ -110,11 +125,11 @@ class ZulipMsg(object):
         if speak:
             MediaPlayer().speak(txt, language=speak_lang)
         else:
-            if self.msg["type"] == "private":
+            if self.is_direct_msg():
                 rep = {"type": "private",
                        "to": [x["id"] for x in self.msg["display_recipient"]]
                        }
-            elif self.msg["type"] == "stream":
+            elif self.is_channel_msg():
                 rep = {"type": "stream",
                        "to": self.msg["display_recipient"],
                        "topic": self.msg["subject"]
@@ -127,4 +142,6 @@ class ZulipMsg(object):
                 rep["content"] = "{}\n{}".format(prefix, txt)
             else:
                 rep["content"] = txt
-            self.client.send_message(rep)
+            result = self.client.send_message(rep)
+            if result.get("result") != "success":
+                print(f"send_message failed: {result}")

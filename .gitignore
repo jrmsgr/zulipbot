@@ -1,5 +1,7 @@
 zuliprc
 praw.ini
 msg_filter*.json
+out.log
+venv
 __pycache__
 /data

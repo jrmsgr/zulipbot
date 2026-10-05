@@ -2,6 +2,7 @@ import getpass
 from multiprocessing import Manager, Process, Queue
 from typing import List, Dict
 import socket
+import traceback
 
 import zulip
 
@@ -50,7 +51,8 @@ class ZulipBot(object):
     def run_cmd(self, cmd: ZulipBotCmdBase, msg: ZulipMsg):
         try:
             cmd.process(msg)
-        except:
+        except Exception:
+            traceback.print_exc()
             msg.reply(
                 f"{msg.cmd_prefix}{cmd.cmd_name} failed", is_error=True)
 
@@ -70,4 +72,8 @@ class ZulipBot(object):
         for cmd in self.cmds:
             p = Process(target=self.process_queue, args=(cmd,))
             p.start()
+        profile = self.client.get_profile()
+        if profile.get("result") != "success":
+            raise RuntimeError(f"Zulip authentication failed: {profile.get('msg')}")
+        print(f"Connected to {self.client.base_url} as {profile['full_name']} <{profile['email']}>")
         self.client.call_on_each_message(self.fill_queues)
