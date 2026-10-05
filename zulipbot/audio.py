@@ -1,8 +1,15 @@
 import glob
+import os
 import os.path
+import shutil
 import subprocess
+import sys
 
 from gtts import gTTS
+import yt_dlp
+
+# yt-dlp needs a JavaScript runtime (deno, installed in the venv) to decode YouTube streams
+os.environ["PATH"] = os.path.dirname(sys.executable) + os.pathsep + os.environ.get("PATH", "")
 
 
 class Audio(object):
@@ -49,8 +56,26 @@ class MediaPlayer(object):
         path = f"{self.record_dir}/{url}.wav"
         if os.path.exists(path):
             url = path
-        subprocess.Popen(["cvlc", "--quiet", "--no-loop", "--play-and-exit",
-                          "--no-video", url])
+        elif url.startswith(("http://", "https://")):
+            url = self.get_audio_stream_url(url)
+        if shutil.which("cvlc"):
+            cmd = ["cvlc", "--quiet", "--no-loop", "--play-and-exit", "--no-video"]
+        else:
+            cmd = ["mpv", "--really-quiet", "--no-video", "--ytdl=no"]
+        subprocess.Popen(cmd + [url])
+
+    @staticmethod
+    def get_audio_stream_url(url: str) -> str:
+        """resolve a web page (youtube etc) to a direct audio stream url,
+        players' own youtube support is slow or broken"""
+        opts = {"format": "bestaudio/best", "quiet": True, "no_warnings": True,
+                "noplaylist": True}
+        try:
+            with yt_dlp.YoutubeDL(opts) as ydl:
+                return ydl.extract_info(url, download=False)["url"]
+        except yt_dlp.utils.DownloadError:
+            # not a supported site: let the player try the url as is
+            return url
 
     def record(self, file_name: str):
         cmd = f"arecord -D hw:2,0 -f S16_LE -r44100 -t wav -d 5"
@@ -66,6 +91,7 @@ class MediaPlayer(object):
 
     def stop(self):
         subprocess.run(['pkill', 'vlc'])
+        subprocess.run(['pkill', '-f', 'mpv --really-quiet'])
 
     def speak(self, text: str, language: str = 'en'):
         file_name = f"{self.speak_dir}/speak.mp3"

@@ -1,6 +1,8 @@
 certifi
+deno
 gtts>=2.5
 praw>=7.8
 python-weather>=2.0
 requests
+yt-dlp[default]
 zulip>=0.9.1
